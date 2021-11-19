@@ -7,6 +7,9 @@ import datetime
 import numpy as np
 import struct
 import os.path
+import os
+from statistics import mode
+from shutil import copyfile
 
 import scipy.signal as signal
 import matplotlib.pyplot as plt
@@ -59,7 +62,8 @@ def readTrc( fName ):
         lWAVE_ARRAY_2    = readX( fid, endi+"l", wdOffset + 64 )
 
         d = dict()  #Will store all the extracted Metadata
-        
+
+                
         #------------------------
         # Get Instrument info
         #------------------------
@@ -118,7 +122,7 @@ def readTrc( fName ):
         y = d["VERTICAL_GAIN"] * y - d["VERTICAL_OFFSET"]
         x = np.arange(1,len(y)+1)*d["HORIZ_INTERVAL"] + d["HORIZ_OFFSET"]
     return x, y, d
-
+    
 def readX( fid, fmt, adr=None ):
     """ extract a byte / word / float / double from the binary file """
     nBytes = struct.calcsize( fmt )
@@ -160,79 +164,139 @@ def readBin(folder,name):
 #Goal: Write a program that does various convolutions and write it into a
 #new lecroy scope binary file
 
-def Convolution(x,y,Type,width,amp):
-    
-    Boxcar = lambda  X,a: 1*a if (X <= width/2 and X>= -width/2) else 0
-    Gaussian = lambda X,a: a*np.e**(-.5*(X)**2/width**2)
-
+def Convolution(x,y,Type,points,amp):
     delta = x[1]-x[0]
-    xc = np.arange(-5*length,5*length,delta)
-    yc = np.zeros(len(xc))
+    DeltaT = x[-1]-x[0]
     
-    if Type == 1:
+    Boxcar = lambda  X,a: 1*a if (X <= points*delta/2 and X>= -points*delta/2) else 0
+    Gaussian = lambda X,a: a*np.e**(-.5*(X)**2/(delta*points)**2)
+    
+    xc = np.arange(-5*points*delta,5*points*delta,delta)
+    yc = np.zeros(len(xc))
+
+    if Type == 'B':
         for i in range(len(yc)):
             yc[i] = Boxcar(xc[i],amp)
-    elif Type == 2:
+    elif Type == 'G':
         for i in range(len(yc)):
             yc[i] = Gaussian(xc[i],amp)
     else:
         return
-            
-    Convolve = signal.convolve(y,yc,mode = 'same',method = 'direct')*delta
+    Convolve = signal.convolve(y,yc,mode = 'same')*delta
 
 
     return x,Convolve
+
+#def writeTrc(x,y,name,location):
+    #numpytofile
 
 
 
 #Test Area
 
 if __name__ == '__main__':
-    length = 5
-    n = .5
-    Boxcar = lambda  x,a: 1*a if (x <= length/2 and x>= -length/2) else 0
-    Gaussian = lambda x,a: a*np.e**(-.5*(x)**2/n**2)
 
+    #Test Data
+    length = 5
+    Boxcar = lambda  x,a: 1*a if (x <= length/2 and x>= -length/2) else 0
     x = np.linspace(-4*length,4*length,1000)
     yb = np.zeros(len(x))
-
-    interval1 = x[1]-x[0]
-    iterations = int(8*n/interval1)
-    x1 = np.linspace(-4*n,4*n,iterations)
-    yg = np.zeros(len(x1))
-
-    interval2 = x1[1]-x1[0]
-    print(interval1,interval2)
-
     for i in range(len(x)):
         yb[i] = Boxcar(x[i],1)
-    for i in range(len(x1)):
-        yg[i] = Gaussian(x1[i],1)
+    n = 100
+    x2,Conv2 = Convolution(x,yb,'G',n,.5)
+
+    #plt.plot(x,yb)
+    #plt.plot(x2,Conv2)
+    #plt.legend(['Input','Convolution','PointWide'])
+    #plt.show()
+
+
+    #Read from Scope
+    foldername = "/Users/DavidChaparro/Desktop/Lab_Data/Pure_Ice/10-5-2021WaterGrowthData"
+    Allnames = os.listdir(foldername)
+    ChannelNames = []
+    FileName = []
+    FileNumber = []
+    trim1 = []
+    trim2 = []
+    for i in range(len(Allnames)):
+        trim1 = ''
+        trim2 = ''
+        ChannelNames.append(Allnames[i][0:2])
+        FileNumber.append(Allnames[i][-9:-4])
+        trim1 = Allnames[i][:-9]
+        trim2 = trim1[2:]
+        FileName.append(trim2)
         
-    Convolve = signal.convolve(yb,yg,mode = 'same',method = 'direct')*interval2
+
+    Channels = set(ChannelNames)
+    Names = set(FileName)
+    Numbers = set(FileNumber)   
+
+    #Convolving a specific Binary file and Channel Number
+    Channel = "C3"
+    name = Channel+'W1H'+'00001'+'.trc'
 
     
-    b = np.trapz(yg,x1)
-    a = np.trapz(yb,x)
-    c = np.trapz(Convolve,x)
+    DataIn = readBin(foldername,name)
+    DataOut = np.zeros(DataIn.shape)
+    DataOut[0,:],DataOut[1,:] = Convolution(DataIn[0,:],DataIn[1,:],'G',8,max(DataIn[1,:]))
+    DataOut[1,:] = DataOut[1,:]*(max(DataIn[1,:])/max(DataOut[1,:]))
+    DataOut[1,:]= DataOut[1,:]-np.mean(DataOut[1,:])+np.mean(DataIn[1,:])
 
+    #plt.plot(DataIn[0,:],DataIn[1,:])
+    #plt.plot(DataOut[0,:],DataOut[1,:])
+    #plt.legend(['Input','Convolution'])
+    #plt.show()
+
+
+    NewFolderName = '/Users/DavidChaparro/Desktop/Lab_Data/Programs/Lecroy-ScopeTools/NewSavedTestData'
+    NewFileName = name
+    copyfile(foldername+'/'+name,NewFolderName+'/'+name)
+
+    with open(NewFolderName+'/'+name, "rb+") as fid:
+        data = fid.read(50).decode()
+        wdOffset = data.find('WAVEDESC')
+        # Get binary format / endianess
+        smplFmt = ""
+        if readX( fid, '?', wdOffset + 32 ):  #16 or 8 bit sample format?
+            smplFmt = "int16"
+        else:
+            smplFmt = "int8"
+        if readX( fid, '?', wdOffset + 34 ):  #Big or little endian?
+            endi = "<"
+        else:
+            endi = ">"
+        #Gather Info about Section lengths to seek to correct position
+        lWAVE_DESCRIPTOR = readX( fid, endi+"l", wdOffset + 36 )
+        lUSER_TEXT       = readX( fid, endi+"l", wdOffset + 40 )
+        lTRIGTIME_ARRAY  = readX( fid, endi+"l", wdOffset + 48 )
+        lRIS_TIME_ARRAY  = readX( fid, endi+"l", wdOffset + 52 )
+        lWAVE_ARRAY_1    = readX( fid, endi+"l", wdOffset + 60 )
+        lWAVE_ARRAY_2    = readX( fid, endi+"l", wdOffset + 64 )
+
+        d = dict()  #Will store all the extracted Metadata
+        d["VERTICAL_GAIN"]    = readX( fid, endi+"f", wdOffset +156 ) #to get floating values from raw data :
+        d["VERTICAL_OFFSET"]  = readX( fid, endi+"f", wdOffset +160 ) #VERTICAL_GAIN * data - VERTICAL_OFFSET 
+        
+
+        #DataOut[1,:] = (DataOut[1,:]+d["VERTICAL_OFFSET"])/d["VERTICAL_GAIN"]
+        NewData = bytes(DataOut)
+        fid.seek( wdOffset + lWAVE_DESCRIPTOR + lUSER_TEXT + lTRIGTIME_ARRAY + lRIS_TIME_ARRAY ) #Seek to WAVE_ARRAY_1
+        List = fid.readlines()
+        fid.write(NewData)
+        fid.close()
     
-    plt.plot(x,yb)
-    plt.plot(x1,yg)
-    plt.plot(x,Convolve)
-    plt.legend(['Boxcar','Gaussian','Convolution'])
+    DataNew = readBin(NewFolderName,name)
+    print(DataOut.shape)
+    print(DataNew.shape)
+    #plt.plot(DataIn[0,:],DataIn[1,:])
+    plt.plot(DataOut[0,:],DataOut[1,:])
+    plt.plot(DataNew[0,:],DataNew[1,:])
+    plt.legend(['Data In','Data Out','OverWrittenData'])
     plt.show()
 
-    
-
-    x2,Conv2 = Convolution(x,yb,2,.5,.5)
-
-    plt.plot(x,yb)
-    plt.plot(x2,Conv2)
-    plt.legend(['Input','Convolution'])
-    plt.show()
 
 
 
-
-    
