@@ -35,7 +35,7 @@ def readTrc( fName ):
         
         M. Betz 09/2015
     """
-    with open(fName, "rb") as fid:
+    with open(fName, "rb+") as fid:
         data = fid.read(50).decode()
         wdOffset = data.find('WAVEDESC')
         
@@ -63,6 +63,11 @@ def readTrc( fName ):
 
         d = dict()  #Will store all the extracted Metadata
 
+        
+        #------------------------
+        # Get wave descriptor info:
+        #------------------------
+        d["COMM_TYPE"]        = readX( fid, endi+"H", wdOffset + 32 )
                 
         #------------------------
         # Get Instrument info
@@ -129,6 +134,7 @@ def readX( fid, fmt, adr=None ):
     if adr is not None:
         fid.seek( adr )
     s = struct.unpack( fmt, fid.read( nBytes ) )
+    #print(adr, "Format", fmt)
     if(type(s) == tuple):
         return s[0]
     else:
@@ -241,21 +247,16 @@ if __name__ == '__main__':
     
     DataIn = readBin(foldername,name)
     DataOut = np.zeros(DataIn.shape)
-    DataOut[0,:],DataOut[1,:] = Convolution(DataIn[0,:],DataIn[1,:],'G',8,max(DataIn[1,:]))
+    DataOut[0,:],DataOut[1,:] = Convolution(DataIn[0,:],DataIn[1,:],'G',4,max(DataIn[1,:]))
     DataOut[1,:] = DataOut[1,:]*(max(DataIn[1,:])/max(DataOut[1,:]))
     DataOut[1,:]= DataOut[1,:]-np.mean(DataOut[1,:])+np.mean(DataIn[1,:])
-
-    #plt.plot(DataIn[0,:],DataIn[1,:])
-    #plt.plot(DataOut[0,:],DataOut[1,:])
-    #plt.legend(['Input','Convolution'])
-    #plt.show()
-
-
+    DataConvolved = DataOut
+    
     NewFolderName = '/Users/DavidChaparro/Desktop/Lab_Data/Programs/Lecroy-ScopeTools/NewSavedTestData'
     NewFileName = name
     copyfile(foldername+'/'+name,NewFolderName+'/'+name)
 
-    with open(NewFolderName+'/'+name, "rb+") as fid:
+    with open(NewFolderName+'/'+name, "rb") as fid:
         data = fid.read(50).decode()
         wdOffset = data.find('WAVEDESC')
         # Get binary format / endianess
@@ -268,6 +269,7 @@ if __name__ == '__main__':
             endi = "<"
         else:
             endi = ">"
+        
         #Gather Info about Section lengths to seek to correct position
         lWAVE_DESCRIPTOR = readX( fid, endi+"l", wdOffset + 36 )
         lUSER_TEXT       = readX( fid, endi+"l", wdOffset + 40 )
@@ -275,26 +277,30 @@ if __name__ == '__main__':
         lRIS_TIME_ARRAY  = readX( fid, endi+"l", wdOffset + 52 )
         lWAVE_ARRAY_1    = readX( fid, endi+"l", wdOffset + 60 )
         lWAVE_ARRAY_2    = readX( fid, endi+"l", wdOffset + 64 )
-
+        
         d = dict()  #Will store all the extracted Metadata
         d["VERTICAL_GAIN"]    = readX( fid, endi+"f", wdOffset +156 ) #to get floating values from raw data :
         d["VERTICAL_OFFSET"]  = readX( fid, endi+"f", wdOffset +160 ) #VERTICAL_GAIN * data - VERTICAL_OFFSET 
+        fid.close()
+
+    with open(NewFolderName+'/'+name, "r+b") as fid:
+        DataOut[1,:] = (DataOut[1,:]+d["VERTICAL_OFFSET"])/d["VERTICAL_GAIN"]
+        DataOut2 = []
+        for i in range(len(DataOut[1,:])):
+            DataOut2.append((int(DataOut[1,i])))
+        fid.seek( wdOffset + lWAVE_DESCRIPTOR + lUSER_TEXT + lTRIGTIME_ARRAY + lRIS_TIME_ARRAY ) #Seek to WAVE_ARRAY_1
+        wrtFmt = endi+smplFmt[0]
+        for i in range(len(DataOut2)):
+            fid.write(struct.pack(wrtFmt,DataOut2[i])[0:2])
+        fid.close()
+
         
 
-        #DataOut[1,:] = (DataOut[1,:]+d["VERTICAL_OFFSET"])/d["VERTICAL_GAIN"]
-        NewData = bytes(DataOut)
-        fid.seek( wdOffset + lWAVE_DESCRIPTOR + lUSER_TEXT + lTRIGTIME_ARRAY + lRIS_TIME_ARRAY ) #Seek to WAVE_ARRAY_1
-        List = fid.readlines()
-        fid.write(NewData)
-        fid.close()
-    
-    DataNew = readBin(NewFolderName,name)
-    print(DataOut.shape)
-    print(DataNew.shape)
-    #plt.plot(DataIn[0,:],DataIn[1,:])
-    plt.plot(DataOut[0,:],DataOut[1,:])
-    plt.plot(DataNew[0,:],DataNew[1,:])
-    plt.legend(['Data In','Data Out','OverWrittenData'])
+    DataConvolved[1,:] = DataConvolved[1,:]*d["VERTICAL_GAIN"]-d["VERTICAL_OFFSET"]
+    DataFromFile = readBin(NewFolderName,name)
+    plt.plot(DataIn[0,:],DataIn[1,:])
+    plt.plot(DataConvolved[0,:],DataConvolved[1,:])
+    plt.legend(['Unconvolved Data' ,'Convolved Data'])
     plt.show()
 
 
