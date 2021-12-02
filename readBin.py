@@ -8,12 +8,15 @@ import numpy as np
 import struct
 import os.path
 import os
-from statistics import mode
-from shutil import copyfile
 
-import scipy.signal as signal
 import matplotlib.pyplot as plt
+from shutil import copyfile
+from statistics import mode
+import scipy.signal as signal
 
+def Test():
+    print("HI")
+    
 def readTrc( fName ):
     """
         Reads .trc binary files from LeCroy Oscilloscopes.
@@ -169,6 +172,8 @@ def readBin(folder,name):
 
 #Goal: Write a program that does various convolutions and write it into a
 #new lecroy scope binary file
+#def writeTrc(x,y,name,location):
+    #numpytofile
 
 def Convolution(x,y,Type,points,amp):
     delta = x[1]-x[0]
@@ -190,12 +195,74 @@ def Convolution(x,y,Type,points,amp):
         return
     Convolve = signal.convolve(y,yc,mode = 'same')*delta
 
-
     return x,Convolve
 
-#def writeTrc(x,y,name,location):
-    #numpytofile
 
+def OverrideData(y,NewFolder,Filename):
+    with open(NewFolder+'/'+Filename, "r+b") as fid:
+        data = fid.read(50).decode()
+        wdOffset = data.find('WAVEDESC')
+        
+        # Get binary format / endianess
+        smplFmt = ""
+        if readX( fid, '?', wdOffset + 32 ):  #16 or 8 bit sample format?
+            smplFmt = "int16"
+        else:
+            smplFmt = "int8"
+        if readX( fid, '?', wdOffset + 34 ):  #Big or little endian?
+            endi = "<"
+        else:
+            endi = ">"
+        
+        #Gather Info about Section lengths to seek to correct position
+        lWAVE_DESCRIPTOR = readX( fid, endi+"l", wdOffset + 36 )
+        lUSER_TEXT       = readX( fid, endi+"l", wdOffset + 40 )
+        lTRIGTIME_ARRAY  = readX( fid, endi+"l", wdOffset + 48 )
+        lRIS_TIME_ARRAY  = readX( fid, endi+"l", wdOffset + 52 )
+        lWAVE_ARRAY_1    = readX( fid, endi+"l", wdOffset + 60 )
+        
+        d = dict()  #Will store all the extracted Metadata
+        d["VERTICAL_GAIN"]    = readX( fid, endi+"f", wdOffset +156 ) #to get floating values from raw data :
+        d["VERTICAL_OFFSET"]  = readX( fid, endi+"f", wdOffset +160 ) #VERTICAL_GAIN * data - VERTICAL_OFFSET 
+
+        #Recalculate to stored Int value
+        yint = []
+        for i in range(len(y)):
+            yint.append((int((y[i]+d["VERTICAL_OFFSET"])/d["VERTICAL_GAIN"])))
+            
+        #Seek to position of start of dataset    
+        fid.seek( wdOffset + lWAVE_DESCRIPTOR + lUSER_TEXT + lTRIGTIME_ARRAY + lRIS_TIME_ARRAY ) #Seek to WAVE_ARRAY_1
+        wrtFmt = endi+'i' #Format of the int written in binary
+
+        #Writing each value to file
+        for i in range(len(yint)):
+            fid.write(struct.pack(wrtFmt,yint[i])[0:2])
+        fid.close()
+
+        
+def DuplicateData(DataFolder):
+    Allnames = os.listdir(DataFolder)
+    Allnames.remove('.DS_Store')
+    ChannelNames = []
+    FileName = []
+    FileNumber = []
+    trim1 = []
+    trim2 = []
+    for i in range(len(Allnames)):
+        trim1 = ''
+        trim2 = ''
+        ChannelNames.append(Allnames[i][0:2])
+        FileNumber.append(Allnames[i][-9:-4])
+        trim1 = Allnames[i][:-9]
+        trim2 = trim1[2:]
+        FileName.append(trim2)
+
+    Channels = set(ChannelNames)
+    Names = set(FileName)
+    Numbers = set(FileNumber)
+    print(Channels)
+    print(Names)
+    print(Numbers)
 
 
 #Test Area
@@ -220,6 +287,9 @@ if __name__ == '__main__':
 
     #Read from Scope
     foldername = "/Users/DavidChaparro/Desktop/Lab_Data/Pure_Ice/10-5-2021WaterGrowthData"
+    DuplicateData(foldername)
+
+
     Allnames = os.listdir(foldername)
     ChannelNames = []
     FileName = []
@@ -247,7 +317,7 @@ if __name__ == '__main__':
     
     DataIn = readBin(foldername,name)
     DataOut = np.zeros(DataIn.shape)
-    DataOut[0,:],DataOut[1,:] = Convolution(DataIn[0,:],DataIn[1,:],'G',4,max(DataIn[1,:]))
+    DataOut[0,:],DataOut[1,:] = Convolution(DataIn[0,:],DataIn[1,:],'G',2,max(DataIn[1,:]))
     DataOut[1,:] = DataOut[1,:]*(max(DataIn[1,:])/max(DataOut[1,:]))
     DataOut[1,:]= DataOut[1,:]-np.mean(DataOut[1,:])+np.mean(DataIn[1,:])
     DataConvolved = DataOut
@@ -256,51 +326,13 @@ if __name__ == '__main__':
     NewFileName = name
     copyfile(foldername+'/'+name,NewFolderName+'/'+name)
 
-    with open(NewFolderName+'/'+name, "rb") as fid:
-        data = fid.read(50).decode()
-        wdOffset = data.find('WAVEDESC')
-        # Get binary format / endianess
-        smplFmt = ""
-        if readX( fid, '?', wdOffset + 32 ):  #16 or 8 bit sample format?
-            smplFmt = "int16"
-        else:
-            smplFmt = "int8"
-        if readX( fid, '?', wdOffset + 34 ):  #Big or little endian?
-            endi = "<"
-        else:
-            endi = ">"
-        
-        #Gather Info about Section lengths to seek to correct position
-        lWAVE_DESCRIPTOR = readX( fid, endi+"l", wdOffset + 36 )
-        lUSER_TEXT       = readX( fid, endi+"l", wdOffset + 40 )
-        lTRIGTIME_ARRAY  = readX( fid, endi+"l", wdOffset + 48 )
-        lRIS_TIME_ARRAY  = readX( fid, endi+"l", wdOffset + 52 )
-        lWAVE_ARRAY_1    = readX( fid, endi+"l", wdOffset + 60 )
-        lWAVE_ARRAY_2    = readX( fid, endi+"l", wdOffset + 64 )
-        
-        d = dict()  #Will store all the extracted Metadata
-        d["VERTICAL_GAIN"]    = readX( fid, endi+"f", wdOffset +156 ) #to get floating values from raw data :
-        d["VERTICAL_OFFSET"]  = readX( fid, endi+"f", wdOffset +160 ) #VERTICAL_GAIN * data - VERTICAL_OFFSET 
-        fid.close()
-
-    with open(NewFolderName+'/'+name, "r+b") as fid:
-        DataOut[1,:] = (DataOut[1,:]+d["VERTICAL_OFFSET"])/d["VERTICAL_GAIN"]
-        DataOut2 = []
-        for i in range(len(DataOut[1,:])):
-            DataOut2.append((int(DataOut[1,i])))
-        fid.seek( wdOffset + lWAVE_DESCRIPTOR + lUSER_TEXT + lTRIGTIME_ARRAY + lRIS_TIME_ARRAY ) #Seek to WAVE_ARRAY_1
-        wrtFmt = endi+smplFmt[0]
-        for i in range(len(DataOut2)):
-            fid.write(struct.pack(wrtFmt,DataOut2[i])[0:2])
-        fid.close()
-
-        
-
-    DataConvolved[1,:] = DataConvolved[1,:]*d["VERTICAL_GAIN"]-d["VERTICAL_OFFSET"]
+    OverrideData(DataOut[1,:],NewFolderName,name)
     DataFromFile = readBin(NewFolderName,name)
+    
     plt.plot(DataIn[0,:],DataIn[1,:])
     plt.plot(DataConvolved[0,:],DataConvolved[1,:])
-    plt.legend(['Unconvolved Data' ,'Convolved Data'])
+    plt.plot(DataFromFile[0,:],DataFromFile[1,:])
+    plt.legend(['Unconvolved Data' ,'Convolved Data','From File'])
     plt.show()
 
 
