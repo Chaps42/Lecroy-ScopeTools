@@ -3,6 +3,7 @@ import numpy as np
 import os
 from shutil import copyfile
 import matplotlib.pyplot as plt
+import timeit
 
 def Convolution(x,y,Type,points,amp):
     delta = x[1]-x[0]
@@ -84,7 +85,8 @@ if __name__ == '__main__':
 
             plt.plot(DataIn[0,:],DataIn[1,:])
             plt.plot(x,y)
-            plt.legend(['Unconvolved Data' ,'Convolved Data'])
+            plt.title(name+ ' Convolved with '+Convolution+', '+str(PointWidth)+' points wide')
+            plt.legend(['Unconvolved Data' ,' Convolved Data'])
             plt.show()
 
             Another = input("Would you like to convolve a another file? (y/n): ")
