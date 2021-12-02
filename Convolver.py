@@ -112,7 +112,7 @@ if __name__ == '__main__':
             y= y-np.mean(y)+np.mean(DataIn[1,:])
             rb.OverrideData(y,NewFolder,name)
             if i%5 ==0:
-                print("Progress: ",i,"/",len(Numbers))
+                print("Progress: ",i,"/",len(Numbers,'...'))
         
     print("Finished!")
 

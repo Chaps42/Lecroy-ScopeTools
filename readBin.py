@@ -243,6 +243,7 @@ def OverrideData(y,NewFolder,Filename):
 def DuplicateData(DataFolder):
     Allnames = os.listdir(DataFolder)
     Allnames.remove('.DS_Store')
+    
     ChannelNames = []
     FileName = []
     FileNumber = []
@@ -260,30 +261,12 @@ def DuplicateData(DataFolder):
     Channels = set(ChannelNames)
     Names = set(FileName)
     Numbers = set(FileNumber)
-    print(Channels)
-    print(Names)
-    print(Numbers)
+
 
 
 #Test Area
 
 if __name__ == '__main__':
-
-    #Test Data
-    length = 5
-    Boxcar = lambda  x,a: 1*a if (x <= length/2 and x>= -length/2) else 0
-    x = np.linspace(-4*length,4*length,1000)
-    yb = np.zeros(len(x))
-    for i in range(len(x)):
-        yb[i] = Boxcar(x[i],1)
-    n = 100
-    x2,Conv2 = Convolution(x,yb,'G',n,.5)
-
-    #plt.plot(x,yb)
-    #plt.plot(x2,Conv2)
-    #plt.legend(['Input','Convolution','PointWide'])
-    #plt.show()
-
 
     #Read from Scope
     foldername = "/Users/DavidChaparro/Desktop/Lab_Data/Pure_Ice/10-5-2021WaterGrowthData"
@@ -324,6 +307,7 @@ if __name__ == '__main__':
     
     NewFolderName = '/Users/DavidChaparro/Desktop/Lab_Data/Programs/Lecroy-ScopeTools/NewSavedTestData'
     NewFileName = name
+    
     copyfile(foldername+'/'+name,NewFolderName+'/'+name)
 
     OverrideData(DataOut[1,:],NewFolderName,name)
