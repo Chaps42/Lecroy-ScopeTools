@@ -195,6 +195,9 @@ def Convolution(x,y,Type,points,amp):
         return
     Convolve = signal.convolve(y,yc,mode = 'same')*delta
 
+    Convolve = Convolve*(max(y)/max(Convolve))
+    Convolve = Convolve-np.mean(Convolve)+np.mean(y)
+
     return x,Convolve
 
 
@@ -267,57 +270,86 @@ def DuplicateData(DataFolder):
 #Test Area
 
 if __name__ == '__main__':
+    TEST = False
 
-    #Read from Scope
-    foldername = "/Users/DavidChaparro/Desktop/Lab_Data/Pure_Ice/10-5-2021WaterGrowthData"
-    DuplicateData(foldername)
+    points = 5
+    delta = .5
+
+    Boxcar = lambda  X: 1 if (X <= points*delta/2 and X>= -points*delta/2) else 0
+    Gaussian = lambda X: np.e**(-.5*(X)**2/(delta*points)**2)
+    
+    xc = np.arange(-5*points*delta,5*points*delta,delta)
+    yc1 = np.zeros(len(xc))
+    yc2 = np.zeros(len(xc))
+
+    for i in range(len(yc1)):
+        yc1[i] = Boxcar(xc[i])
+        yc2[i] = Gaussian(xc[i])
+
+    Barea = np.trapz(yc1,xc)
+    Garea = np.trapz(yc2,xc)
+    print(Barea)
+    print(Garea)
+    print(np.trapz(yc1/Barea,xc))
+    print(np.trapz(yc2/Garea,xc))
 
 
-    Allnames = os.listdir(foldername)
-    ChannelNames = []
-    FileName = []
-    FileNumber = []
-    trim1 = []
-    trim2 = []
-    for i in range(len(Allnames)):
-        trim1 = ''
-        trim2 = ''
-        ChannelNames.append(Allnames[i][0:2])
-        FileNumber.append(Allnames[i][-9:-4])
-        trim1 = Allnames[i][:-9]
-        trim2 = trim1[2:]
-        FileName.append(trim2)
+
+
+
+
+    if TEST == True:
+        #Read from Scope
+        foldername = "/Users/DavidChaparro/Desktop/Lab_Data/Pure_Ice/10-5-2021WaterGrowthData"
+        DuplicateData(foldername)
+
+
+        Allnames = os.listdir(foldername)
+        ChannelNames = []
+        FileName = []
+        FileNumber = []
+        trim1 = []
+        trim2 = []
+        for i in range(len(Allnames)):
+            trim1 = ''
+            trim2 = ''
+            ChannelNames.append(Allnames[i][0:2])
+            FileNumber.append(Allnames[i][-9:-4])
+            trim1 = Allnames[i][:-9]
+            trim2 = trim1[2:]
+            FileName.append(trim2)
+            
+
+        Channels = set(ChannelNames)
+        Names = set(FileName)
+        Numbers = set(FileNumber)   
+
+        #Convolving a specific Binary file and Channel Number
+        Channel = "C3"
+        name = Channel+'W1H'+'00001'+'.trc'
+
         
+        DataIn = readBin(foldername,name)
+        DataOut = np.zeros(DataIn.shape)
+        DataOut[0,:],DataOut[1,:] = Convolution(DataIn[0,:],DataIn[1,:],'G',2,max(DataIn[1,:]))
+        DataOut[1,:] = DataOut[1,:]*(max(DataIn[1,:])/max(DataOut[1,:]))
+        DataOut[1,:]= DataOut[1,:]-np.mean(DataOut[1,:])+np.mean(DataIn[1,:])
+        DataConvolved = DataOut
+        
+        NewFolderName = '/Users/DavidChaparro/Desktop/Lab_Data/Programs/Lecroy-ScopeTools/NewSavedTestData'
+        NewFileName = name
+        
+        copyfile(foldername+'/'+name,NewFolderName+'/'+name)
 
-    Channels = set(ChannelNames)
-    Names = set(FileName)
-    Numbers = set(FileNumber)   
+        OverrideData(DataOut[1,:],NewFolderName,name)
+        DataFromFile = readBin(NewFolderName,name)
+        
+        plt.plot(DataIn[0,:],DataIn[1,:])
+        plt.plot(DataConvolved[0,:],DataConvolved[1,:])
+        plt.plot(DataFromFile[0,:],DataFromFile[1,:])
+        plt.legend(['Unconvolved Data' ,'Convolved Data','From File'])
+        plt.show()
 
-    #Convolving a specific Binary file and Channel Number
-    Channel = "C3"
-    name = Channel+'W1H'+'00001'+'.trc'
-
-    
-    DataIn = readBin(foldername,name)
-    DataOut = np.zeros(DataIn.shape)
-    DataOut[0,:],DataOut[1,:] = Convolution(DataIn[0,:],DataIn[1,:],'G',2,max(DataIn[1,:]))
-    DataOut[1,:] = DataOut[1,:]*(max(DataIn[1,:])/max(DataOut[1,:]))
-    DataOut[1,:]= DataOut[1,:]-np.mean(DataOut[1,:])+np.mean(DataIn[1,:])
-    DataConvolved = DataOut
-    
-    NewFolderName = '/Users/DavidChaparro/Desktop/Lab_Data/Programs/Lecroy-ScopeTools/NewSavedTestData'
-    NewFileName = name
-    
-    copyfile(foldername+'/'+name,NewFolderName+'/'+name)
-
-    OverrideData(DataOut[1,:],NewFolderName,name)
-    DataFromFile = readBin(NewFolderName,name)
-    
-    plt.plot(DataIn[0,:],DataIn[1,:])
-    plt.plot(DataConvolved[0,:],DataConvolved[1,:])
-    plt.plot(DataFromFile[0,:],DataFromFile[1,:])
-    plt.legend(['Unconvolved Data' ,'Convolved Data','From File'])
-    plt.show()
 
 
 

@@ -3,31 +3,6 @@ import numpy as np
 import os
 from shutil import copyfile
 import matplotlib.pyplot as plt
-import timeit
-
-def Convolution(x,y,Type,points,amp):
-    delta = x[1]-x[0]
-    DeltaT = x[-1]-x[0]
-    
-    Boxcar = lambda  X,a: 1*a if (X <= points*delta/2 and X>= -points*delta/2) else 0
-    Gaussian = lambda X,a: a*np.e**(-.5*(X)**2/(delta*points)**2)
-    
-    xc = np.arange(-5*points*delta,5*points*delta,delta)
-    yc = np.zeros(len(xc))
-
-    if Type == 'B':
-        for i in range(len(yc)):
-            yc[i] = Boxcar(xc[i],amp)
-    elif Type == 'G':
-        for i in range(len(yc)):
-            yc[i] = Gaussian(xc[i],amp)
-    else:
-        return
-    Convolve = signal.convolve(y,yc,mode = 'same')*delta
-
-    return x,Convolve
-    
-
 
 if __name__ == '__main__':
     #Prompt user for file directories
@@ -36,11 +11,11 @@ if __name__ == '__main__':
 
     #Read Data Folder and return info about the datasets
     Allnames = os.listdir(DataFolder)
-    Allnames.remove('.DS_Store')
-    sub = '.spectra'
-    for text in Allnames:
-        if sub in text:
-            Allnames.remove(text)
+    sub = ['.spectra','.DS_Store','.h5']
+    for i in range(len(sub)):
+        for text in Allnames:
+            if sub[i] in text:
+                Allnames.remove(text)
     ChannelNames = []
     FileName = []
     FileNumber = []
@@ -79,9 +54,6 @@ if __name__ == '__main__':
             PointWidth = int(input("Enter the width in data points of convolution (int): "))
             DataIn = rb.readBin(NewFolder,name)
             x,y = rb.Convolution(DataIn[0,:],DataIn[1,:],Convolution,PointWidth,max(DataIn[1,:]))
-            y = y*(max(DataIn[1,:])/max(y))
-            y= y-np.mean(y)+np.mean(DataIn[1,:])
-
 
             plt.plot(DataIn[0,:],DataIn[1,:])
             plt.plot(x,y)
@@ -108,8 +80,7 @@ if __name__ == '__main__':
             copyfile(DataFolder+'/'+name,NewFolder+'/'+name)
             DataIn = rb.readBin(NewFolder,name)
             x,y = rb.Convolution(DataIn[0,:],DataIn[1,:],Convolution,PointWidth,max(DataIn[1,:]))
-            y = y*(max(DataIn[1,:])/max(y))
-            y= y-np.mean(y)+np.mean(DataIn[1,:])
+
             rb.OverrideData(y,NewFolder,name)
             if i%5 ==0:
                 print("Progress: ",i,"/",len(Numbers),'...')
