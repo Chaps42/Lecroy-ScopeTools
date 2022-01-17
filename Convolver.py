@@ -53,7 +53,7 @@ if __name__ == '__main__':
             Convolution = input("Convolve as Gaussian 'G' or Boxcar 'B'?: ")
             PointWidth = int(input("Enter the width in data points of convolution (int): "))
             DataIn = rb.readBin(NewFolder,name)
-            x,y = rb.Convolution(DataIn[0,:],DataIn[1,:],Convolution,PointWidth,max(DataIn[1,:]))
+            x,y = rb.Convolution(DataIn[0,:],DataIn[1,:],Convolution,PointWidth)
 
             plt.plot(DataIn[0,:],DataIn[1,:])
             plt.plot(x,y)
@@ -79,7 +79,7 @@ if __name__ == '__main__':
             name = Channel + Names[0] + Numbers[i] + '.trc'
             copyfile(DataFolder+'/'+name,NewFolder+'/'+name)
             DataIn = rb.readBin(NewFolder,name)
-            x,y = rb.Convolution(DataIn[0,:],DataIn[1,:],Convolution,PointWidth,max(DataIn[1,:]))
+            x,y = rb.Convolution(DataIn[0,:],DataIn[1,:],Convolution,PointWidth)
 
             rb.OverrideData(y,NewFolder,name)
             if i%5 ==0:
