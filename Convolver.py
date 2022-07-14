@@ -3,36 +3,35 @@ import numpy as np
 import os
 from shutil import copyfile
 import matplotlib.pyplot as plt
+from statistics import mode
+import scipy.signal as signal
+        
+def ConvolveDataset(x,y,Type,points):
+    delta = x[1]-x[0]
+    DeltaT = x[-1]-x[0]
+    
+    Boxcar = lambda  X: 1 if (X <= points*delta/2 and X>= -points*delta/2) else 0
+    Gaussian = lambda X: np.e**(-.5*(X)**2/(delta*points)**2)
+    
+    xc = np.arange(-5*points*delta,5*points*delta,delta)
+    yc = np.zeros(len(xc))
 
-if __name__ == '__main__':
-    #Prompt user for file directories
-    DataFolder = input("Enter directory of original data: ")
-    NewFolder = input("Enter directory for the convolved data: ")
+    if Type == 'B':
+        for i in range(len(yc)):
+            yc[i] = Boxcar(xc[i])
+    elif Type == 'G':
+        for i in range(len(yc)):
+            yc[i] = Gaussian(xc[i])
+    else:
+        return
 
-    #Read Data Folder and return info about the datasets
-    Allnames = os.listdir(DataFolder)
-    sub = ['.spectra','.DS_Store','.h5']
-    for i in range(len(sub)):
-        for text in Allnames:
-            if sub[i] in text:
-                Allnames.remove(text)
-    ChannelNames = []
-    FileName = []
-    FileNumber = []
-    trim1 = []
-    trim2 = []
-    for i in range(len(Allnames)):
-        trim1 = ''
-        trim2 = ''
-        ChannelNames.append(Allnames[i][0:2])
-        FileNumber.append(Allnames[i][-9:-4])
-        trim1 = Allnames[i][:-9]
-        trim2 = trim1[2:]
-        FileName.append(trim2)
-    Channels = list(set(ChannelNames))
-    Names = list(set(FileName))
-    Numbers = list(set(FileNumber))
-    Numbers.sort()
+    yc = yc/np.trapz(yc,xc) #Area of Convolve = 1
+    Convolve = signal.convolve(y,yc,mode = 'same')*delta
+
+    return x,Convolve 
+
+def ConvolveExperiment(NewFolder):
+    Channels,Names,Numbers = rb.getNameList(NewFolder)
     Another = 'y'
     while Another =='y':
         if Another == 'y':
@@ -47,13 +46,12 @@ if __name__ == '__main__':
             
             #Copy File to New Folder
             name = Channel + Names[0] + TestNum+'.trc'
-            copyfile(DataFolder+'/'+name,NewFolder+'/'+name)
 
             #Read Data and Convolve
             Convolution = input("Convolve as Gaussian 'G' or Boxcar 'B'?: ")
             PointWidth = int(input("Enter the width in data points of convolution (int): "))
             DataIn = rb.readBin(NewFolder,name)
-            x,y = rb.Convolution(DataIn[0,:],DataIn[1,:],Convolution,PointWidth)
+            x,y = ConvolveDataset(DataIn[0,:],DataIn[1,:],Convolution,PointWidth)
 
             plt.plot(DataIn[0,:],DataIn[1,:])
             plt.plot(x,y)
@@ -68,29 +66,25 @@ if __name__ == '__main__':
     ConvAll = input("Would you like to convolve all "+Channel+" files with this setup? (y/n): ")
     if ConvAll == 'y':
 
-    #Convolving and Copying all files
+    #Convolving all files
         for i in range(len(Numbers)):
-            #Copying unconvolved data
-            for j in range(len(Channels)):
-                name = Channels[j] + Names[0] + Numbers[i] + '.trc'
-                copyfile(DataFolder+'/'+name,NewFolder+'/'+name)
-
             #Copying Convolved Data
             name = Channel + Names[0] + Numbers[i] + '.trc'
-            copyfile(DataFolder+'/'+name,NewFolder+'/'+name)
             DataIn = rb.readBin(NewFolder,name)
-            x,y = rb.Convolution(DataIn[0,:],DataIn[1,:],Convolution,PointWidth)
+            x,y = ConvolveDataset(DataIn[0,:],DataIn[1,:],Convolution,PointWidth)
 
             rb.OverrideData(y,NewFolder,name)
             if i%5 ==0:
                 print("Progress: ",i,"/",len(Numbers),'...')
         
     print("Finished!")
-
-        
-        
-        
-
         
 
     
+if __name__ == '__main__':
+    #Prompt user for file directories
+    DataFolder = input("Enter directory of original data: ")
+    NewFolder = input("Enter directory for the convolved data: ")
+
+    ConvolveExperiment(DataFolder,NewFolder)
+        

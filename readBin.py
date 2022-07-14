@@ -7,15 +7,8 @@ import datetime
 import numpy as np
 import struct
 import os.path
-import os
-
-import matplotlib.pyplot as plt
 from shutil import copyfile
-from statistics import mode
-import scipy.signal as signal
-
-def Test():
-    print("HI")
+import os
     
 def readTrc( fName ):
     """
@@ -156,6 +149,45 @@ def getTimeStamp( fid, endi, adr ):
 
 #Make function callable by command line
 # David Chaparro dchaparro218@gmail.com
+def getNameList(DataFolder):
+    #Read Data Folder and return info about the datasets
+    Allnames = os.listdir(DataFolder)
+    sub = ['.spectra','.DS_Store','.h5']
+    for i in sub:
+        for text in Allnames:
+            if i in text:
+                Allnames.remove(text)
+
+    ChannelNames = []
+    FileName = []
+    FileNumber = []
+    trim1 = []
+    trim2 = []
+    for i in range(len(Allnames)):
+        trim1 = ''
+        trim2 = ''
+        ChannelNames.append(Allnames[i][0:2])
+        FileNumber.append(Allnames[i][-9:-4])
+        trim1 = Allnames[i][:-9]
+        trim2 = trim1[2:]
+        FileName.append(trim2)
+    Channels = list(set(ChannelNames))
+    Names = list(set(FileName))
+    Numbers = list(set(FileNumber))
+    Numbers.sort()
+
+    return Channels,Names,Numbers
+
+def CopyContents(DataFolder,NewFolder):
+    Channels,Names,Numbers = getNameList(DataFolder)
+    Total = len(Numbers)
+    for i in range(len(Numbers)):
+        #Copying unconvolved data
+        for j in range(len(Channels)):
+            name = Channels[j] + Names[0] + Numbers[i] + '.trc'
+            copyfile(DataFolder+'/'+name,NewFolder+'/'+name)
+        if i%5 == 0:
+            print(str(i) + "/" +str(Total)+" Files copied")
 
 def readBin(folder,name):
     datafile =  folder + "//" + name 
@@ -174,31 +206,6 @@ def readBin(folder,name):
 #new lecroy scope binary file
 #def writeTrc(x,y,name,location):
     #numpytofile
-
-def Convolution(x,y,Type,points):
-    delta = x[1]-x[0]
-    DeltaT = x[-1]-x[0]
-    
-    Boxcar = lambda  X: 1 if (X <= points*delta/2 and X>= -points*delta/2) else 0
-    Gaussian = lambda X: np.e**(-.5*(X)**2/(delta*points)**2)
-    
-    xc = np.arange(-5*points*delta,5*points*delta,delta)
-    yc = np.zeros(len(xc))
-
-    if Type == 'B':
-        for i in range(len(yc)):
-            yc[i] = Boxcar(xc[i])
-    elif Type == 'G':
-        for i in range(len(yc)):
-            yc[i] = Gaussian(xc[i])
-    else:
-        return
-
-    yc = yc/np.trapz(yc,xc) #Area of Convolve = 1
-    Convolve = signal.convolve(y,yc,mode = 'same')*delta
-
-    return x,Convolve
-
 
 def OverrideData(y,NewFolder,Filename):
     with open(NewFolder+'/'+Filename, "r+b") as fid:
@@ -242,27 +249,6 @@ def OverrideData(y,NewFolder,Filename):
         fid.close()
 
         
-def DuplicateData(DataFolder):
-    Allnames = os.listdir(DataFolder)
-    Allnames.remove('.DS_Store')
-    
-    ChannelNames = []
-    FileName = []
-    FileNumber = []
-    trim1 = []
-    trim2 = []
-    for i in range(len(Allnames)):
-        trim1 = ''
-        trim2 = ''
-        ChannelNames.append(Allnames[i][0:2])
-        FileNumber.append(Allnames[i][-9:-4])
-        trim1 = Allnames[i][:-9]
-        trim2 = trim1[2:]
-        FileName.append(trim2)
-
-    Channels = set(ChannelNames)
-    Names = set(FileName)
-    Numbers = set(FileNumber)
 
 
 
